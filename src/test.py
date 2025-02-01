@@ -1,3 +1,4 @@
+import pygame
 from game import SnakeGame
 from dqn_agent import DQNAgent
 import time
@@ -10,8 +11,8 @@ logging.basicConfig(
     format='%(asctime)s - %(levelname)s - %(message)s'
 )
 
-def test(model_path, num_episodes=5, render=True):
-    env = SnakeGame()
+def test(model_path, num_episodes=5, render=True, effects=True):  # 添加effects参数
+    env = SnakeGame(enable_effects=effects)  # 传递effects参数
     state_size = 11
     action_size = 4
     agent = DQNAgent(state_size, action_size)
@@ -30,10 +31,11 @@ def test(model_path, num_episodes=5, render=True):
         
         logging.info(f"Starting episode {episode + 1}/{num_episodes}")
         
-        while True:
+        episode_running = True
+        while episode_running:
             if render:
-                env.render()
-                
+                animation_complete = env.render()
+            
             action = agent.act(state)
             state, reward, done = env.step(action)
             total_reward += reward
@@ -44,9 +46,17 @@ def test(model_path, num_episodes=5, render=True):
                 steps_list.append(steps)
                 logging.info(f"Episode {episode + 1} - Score: {env.score} - Steps: {steps}")
                 logging.info(f"Total Reward: {total_reward:.2f}")
-                time.sleep(1)
-                break
-    
+                
+                # 等待死亡动画完成
+                if render:
+                    for _ in range(30):  # 固定帧数
+                        if env.render():  # 如果动画完成，退出循环
+                            break
+                        pygame.time.wait(16)  # ~60fps
+                
+                episode_running = False  # 结束当前episode
+                time.sleep(0.5)  # 短暂暂停
+
     # 显示统计信息
     avg_score = np.mean(scores)
     avg_steps = np.mean(steps_list)
@@ -66,6 +76,8 @@ if __name__ == "__main__":
                       help='Number of episodes to test')
     parser.add_argument('--no-render', action='store_true', 
                       help='Disable game rendering')
+    parser.add_argument('--no-effects', action='store_true', 
+                      help='Disable visual effects')
     
     args = parser.parse_args()
-    test(args.model, args.episodes, not args.no_render)
+    test(args.model, args.episodes, not args.no_render, not args.no_effects)

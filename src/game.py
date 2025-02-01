@@ -2,6 +2,19 @@ import pygame
 import random
 import numpy as np
 from typing import Dict, Tuple
+import os
+import sys
+
+# 添加当前目录到 Python 路径
+current_dir = os.path.dirname(os.path.abspath(__file__))
+if (current_dir not in sys.path):
+    sys.path.append(current_dir)
+
+from particle import ParticleSystem
+try:
+    from .effects import Trail, FoodGlow, ScorePopup, BackgroundEffect
+except ImportError:
+    from effects import Trail, FoodGlow, ScorePopup, BackgroundEffect
 
 class SnakeGame:
     # 预定义的皮肤配置
@@ -26,7 +39,7 @@ class SnakeGame:
         }
     }
 
-    def __init__(self, width=640, height=480, scale=20, skin="classic"):
+    def __init__(self, width=640, height=480, scale=20, skin="classic", enable_effects=True):
         pygame.init()
         self.width = width
         self.height = height
@@ -36,6 +49,18 @@ class SnakeGame:
         self.clock = pygame.time.Clock()
         self.skin = self.SKINS[skin]
         self.custom_skin = None
+        self.particle_system = ParticleSystem()
+        self.death_animation = False
+        self.death_animation_start = None
+        self.frame_count = 0  # 添加帧计数器
+        self.max_animation_frames = 30  # 限制动画帧数
+        self.enable_effects = enable_effects
+        self.SCORE_VALUE = 1  # 定义基础得分值
+        if enable_effects:
+            self.trail = Trail()
+            self.food_glow = FoodGlow()
+            self.score_popups = []
+            self.bg_effect = BackgroundEffect(width, height)
         self.reset()
 
     def reset(self):
@@ -44,6 +69,8 @@ class SnakeGame:
         self.food_pos = self._generate_food()
         self.score = 0
         self.game_over = False
+        self.death_animation = False
+        self.particle_system = ParticleSystem()
         return self._get_state()
 
     def _generate_food(self):
@@ -98,14 +125,47 @@ class SnakeGame:
 
         reward = 0
         self.game_over = self._is_collision(head)
-        if self.game_over:
-            reward = -10
-            return self._get_state(), reward, True
+        if self.game_over and not self.death_animation:
+            # 在蛇的每个部分创建更多爆炸效果
+            for i, pos in enumerate(self.snake_pos):
+                count = 150 if i == 0 else 50  # 蛇头有更多粒子
+                color = self.skin["head_color"] if i == 0 else self.skin["snake_color"]
+                # 在每个位置创建多个爆炸
+                for offset in [(0,0), (-5,5), (5,-5), (-5,-5), (5,5)]:
+                    self.particle_system.create_explosion(
+                        pos[0] + offset[0], 
+                        pos[1] + offset[1],
+                        color,
+                        count=count // 5
+                    )
+            self.death_animation = True
+            self.frame_count = 0
+            return self._get_state(), -10, True
 
         self.snake_pos.insert(0, head)
         
         if head == self.food_pos:
-            self.score += 1
+            if self.enable_effects:
+                # 创建食物消失效果
+                for _ in range(3):  # 创建多层效果
+                    self.particle_system.create_eat_effect(
+                        self.food_pos[0] + random.randint(-5, 5), 
+                        self.food_pos[1] + random.randint(-5, 5), 
+                        self.skin["food_color"]
+                    )
+                # 创建蛇生长效果
+                self.particle_system.create_grow_effect(
+                    head[0],
+                    head[1],
+                    self.skin["snake_color"]
+                )
+                # 更新得分弹出效果以匹配实际得分
+                self.score_popups.append(ScorePopup(
+                    self.food_pos[0], 
+                    self.food_pos[1], 
+                    self.SCORE_VALUE  # 使用统一的得分值
+                ))
+            self.score += self.SCORE_VALUE  # 使用统一的得分值
             reward = 10
             self.food_pos = self._generate_food()
         else:
@@ -137,33 +197,64 @@ class SnakeGame:
     def render(self):
         self.display.fill((0, 0, 0))
         
-        # 绘制蛇身
-        for i, pos in enumerate(self.snake_pos):
-            color = self.skin["head_color"] if i == 0 else self.skin["snake_color"]
-            pygame.draw.rect(self.display, color,
-                           pygame.Rect(pos[0], pos[1], self.scale-2, self.scale-2))
+        if self.enable_effects:
+            # 更新背景效果
+            self.bg_effect.update()
+            self.bg_effect.draw(self.display)
+        
+        if self.death_animation:
+            self.particle_system.update_and_draw(self.display)
+            self.frame_count += 1
+            if self.frame_count >= self.max_animation_frames:  # 使用固定帧数
+                self.death_animation = False
+                return True  # 表示动画完成
+        else:
+            if self.enable_effects:
+                # 绘制蛇的轨迹
+                self.trail.update(self.snake_pos[0])
+                self.trail.draw(self.display, self.scale)
             
-            # 如果有花纹图案，在蛇身上绘制花纹
-            if self.skin["pattern"]:
-                pattern_rect = pygame.Rect(pos[0]+2, pos[1]+2, self.scale-6, self.scale-6)
-                pygame.draw.rect(self.display, self.skin["pattern"], pattern_rect)
+            # 正常渲染蛇和食物
+            for i, pos in enumerate(self.snake_pos):
+                color = self.skin["head_color"] if i == 0 else self.skin["snake_color"]
+                pygame.draw.rect(self.display, color,
+                               pygame.Rect(pos[0], pos[1], self.scale-2, self.scale-2))
+                if self.skin["pattern"]:
+                    pattern_rect = pygame.Rect(pos[0]+2, pos[1]+2, self.scale-6, self.scale-6)
+                    pygame.draw.rect(self.display, self.skin["pattern"], pattern_rect)
+            pygame.draw.rect(self.display, self.skin["food_color"],
+                            pygame.Rect(self.food_pos[0], self.food_pos[1],
+                                      self.scale-2, self.scale-2))
+            
+            if self.enable_effects:
+                # 绘制食物光晕
+                self.food_glow.draw(
+                    self.display,
+                    self.food_pos,
+                    self.skin["food_color"],
+                    self.scale
+                )
+                
+                # 更新和绘制得分弹出效果
+                self.score_popups = [p for p in self.score_popups if p.update()]
+                for popup in self.score_popups:
+                    popup.draw(self.display)
         
-        # 绘制食物
-        pygame.draw.rect(self.display, self.skin["food_color"],
-                        pygame.Rect(self.food_pos[0], self.food_pos[1],
-                                  self.scale-2, self.scale-2))
+        # 始终更新和渲染粒子效果
+        if len(self.particle_system.particles) > 0:
+            self.particle_system.update_and_draw(self.display)
         
-        # 更新分数显示的字体处理
         try:
-            font = pygame.font.SysFont("Arial", 36)  # 尝试使用Arial
+            font = pygame.font.SysFont("Arial", 36)
         except:
-            font = pygame.font.Font(None, 36)  # 如果失败使用默认字体
+            font = pygame.font.Font(None, 36)
             
         score_text = font.render(f'Score: {self.score}', True, (255, 255, 255))
         self.display.blit(score_text, (10, 10))
         
         pygame.display.flip()
-        self.clock.tick(10)
+        self.clock.tick(60)  # 固定60帧
+        return False  # 表示动画未完成
 
     def close(self):
         pygame.quit()

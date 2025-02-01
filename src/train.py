@@ -1,3 +1,4 @@
+import pygame
 from game import SnakeGame
 from dqn_agent import DQNAgent
 import wandb
@@ -15,11 +16,11 @@ logging.basicConfig(
     ]
 )
 
-def train(render=False):
+def train(render=False, effects=True):  # 添加effects参数
     wandb.init(project="snake-dqn", name="training_run")
     logging.info("Starting training process...")
     
-    env = SnakeGame()
+    env = SnakeGame(enable_effects=effects)  # 传递effects参数
     state_size = 11
     action_size = 4
     agent = DQNAgent(state_size, action_size)
@@ -36,6 +37,10 @@ def train(render=False):
         while True:
             if render:
                 env.render()
+                if env.death_animation:
+                    while env.death_animation:
+                        env.render()
+                        pygame.time.wait(50)  # 等待50毫秒以确保动画播放
             
             action = agent.act(state)
             next_state, reward, done = env.step(action)
@@ -76,5 +81,6 @@ def train(render=False):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--render', action='store_true', help='Render the game during training')
+    parser.add_argument('--no-effects', action='store_true', help='Disable visual effects')
     args = parser.parse_args()
-    train(render=args.render)
+    train(render=args.render, effects=not args.no_effects)

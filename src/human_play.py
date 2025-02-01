@@ -1,5 +1,6 @@
 import pygame
 import sys
+import time
 from game import SnakeGame
 
 def get_system_font():
@@ -60,9 +61,13 @@ def game_loop():
     
     game.set_skin(skin)
     game_active = True
-    clock = pygame.time.Clock()
+    last_move_time = time.time()
+    move_delay = 0.1  # 移动间隔，可以调整
     
     while game_active:
+        current_time = time.time()
+        
+        # 处理输入事件
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 game_active = False
@@ -77,19 +82,30 @@ def game_loop():
                     action = 3
                 else:
                     continue
+                
+                # 只在移动间隔到达时执行移动
+                if current_time - last_move_time >= move_delay:
+                    _, _, done = game.step(action)
+                    last_move_time = current_time
                     
-                _, _, done = game.step(action)
-                if done:
-                    game_font = get_system_font()
-                    text = game_font.render(f'Game Over! Score: {game.score}', True, (255, 255, 255))
-                    game.display.blit(text, (game.width//2 - text.get_width()//2, 
-                                           game.height//2 - text.get_height()//2))
-                    pygame.display.flip()
-                    pygame.time.wait(2000)
-                    game_active = False
-                    
+                    if done:
+                        # 处理死亡动画
+                        animation_frames = 0
+                        while animation_frames < 60:  # 增加动画帧数
+                            game.render()
+                            animation_frames += 1
+                        
+                        game_font = get_system_font()
+                        text = game_font.render(f'Game Over! Score: {game.score}', True, (255, 255, 255))
+                        game.display.blit(text, (game.width//2 - text.get_width()//2, 
+                                               game.height//2 - text.get_height()//2))
+                        pygame.display.flip()
+                        pygame.time.wait(2000)
+                        game_active = False
+        
+        # 始终渲染游戏状态
         game.render()
-        clock.tick(10)
+        pygame.time.wait(16)  # 约60FPS
     
     game.close()
 
