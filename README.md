@@ -1,3 +1,9 @@
+<!-- Demo Video -->
+<video width="100%" controls>
+    <source src="video/demo.mp4" type="video/mp4">
+    Your browser does not support the video tag.
+</video>
+
 # 🐍 Red Snake AI
 
 A DQN-based snake game with customizable skins. Train an AI to master the classic snake game or play it yourself!
