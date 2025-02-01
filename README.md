@@ -1,5 +1,3 @@
-![Red Snake AI Demo](video/demo.mp4)
-
 # 🐍 Red Snake AI
 
 A DQN-based snake game with customizable skins. Train an AI to master the classic snake game or play it yourself!
