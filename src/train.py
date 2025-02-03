@@ -5,6 +5,7 @@ import wandb
 import numpy as np
 import logging
 import argparse
+import torch
 
 # 设置日志
 logging.basicConfig(
@@ -17,15 +18,21 @@ logging.basicConfig(
 )
 
 def train(render=False, effects=True):  # 添加effects参数
+    # 添加GPU信息日志
+    if torch.cuda.is_available():
+        logging.info(f"GPU available: {torch.cuda.get_device_name(0)}")
+    else:
+        logging.warning("No GPU available, using CPU")
+    
     wandb.init(project="snake-dqn", name="training_run")
     logging.info("Starting training process...")
     
-    env = SnakeGame(enable_effects=effects)  # 传递effects参数
+    env = SnakeGame(width=1280, height=720, skin="gold", enable_effects=effects)  # 传递effects参数
     state_size = 11
     action_size = 4
     agent = DQNAgent(state_size, action_size)
     batch_size = 32
-    episodes = 1000
+    episodes = 2000
 
     for e in range(episodes):
         state = env.reset()
