@@ -4,6 +4,7 @@ import numpy as np
 from typing import Dict, Tuple
 import os
 import sys
+import math
 
 # 添加当前目录到 Python 路径
 current_dir = os.path.dirname(os.path.abspath(__file__))
@@ -81,10 +82,10 @@ class SnakeGame:
                 return [x, y]
 
     def _get_state(self):
-        # 创建11个特征的状态向量
-        state = np.zeros(11)
-        
+        # 增强状态表示
         head = self.snake_pos[0]
+        state = np.zeros(14)  # 增加到14个特征
+        
         # 危险位置检测
         state[0] = self._is_collision([head[0]-self.scale, head[1]])  # 左
         state[1] = self._is_collision([head[0]+self.scale, head[1]])  # 右
@@ -97,10 +98,15 @@ class SnakeGame:
         state[6] = self.snake_direction[1] == -self.scale  # 上
         state[7] = self.snake_direction[1] == self.scale   # 下
         
-        # 食物相对位置
-        state[8] = self.food_pos[0] < head[0]  # 食物在左边
-        state[9] = self.food_pos[0] > head[0]  # 食物在右边
-        state[10] = self.food_pos[1] < head[1] # 食物在上面
+        # 食物相对位置和距离
+        state[8] = (self.food_pos[0] < head[0])  # 食物在左边
+        state[9] = (self.food_pos[0] > head[0])  # 食物在右边
+        state[10] = (self.food_pos[1] < head[1]) # 食物在上面
+        state[11] = (self.food_pos[1] > head[1]) # 食物在下面
+        
+        # 添加距离信息
+        state[12] = abs(self.food_pos[0] - head[0]) / self.width  # 归一化X距离
+        state[13] = abs(self.food_pos[1] - head[1]) / self.height # 归一化Y距离
         
         return state
 
@@ -110,6 +116,9 @@ class SnakeGame:
                 pos in self.snake_pos[1:])
 
     def step(self, action):
+        prev_distance = math.sqrt((self.snake_pos[0][0] - self.food_pos[0])**2 + 
+                                (self.snake_pos[0][1] - self.food_pos[1])**2)
+        
         # 0: 左, 1: 右, 2: 上, 3: 下
         if action == 0:
             self.snake_direction = [-self.scale, 0]
@@ -122,10 +131,16 @@ class SnakeGame:
 
         head = [self.snake_pos[0][0] + self.snake_direction[0],
                 self.snake_pos[0][1] + self.snake_direction[1]]
-
+        
+        # 计算新的距离
+        new_distance = math.sqrt((head[0] - self.food_pos[0])**2 + 
+                               (head[1] - self.food_pos[1])**2)
+        
         reward = 0
         self.game_over = self._is_collision(head)
-        if self.game_over and not self.death_animation:
+        
+        if self.game_over:
+            reward = -10
             # 在蛇的每个部分创建更多爆炸效果
             for i, pos in enumerate(self.snake_pos):
                 count = 150 if i == 0 else 50  # 蛇头有更多粒子
@@ -140,11 +155,12 @@ class SnakeGame:
                     )
             self.death_animation = True
             self.frame_count = 0
-            return self._get_state(), -10, True
+            return self._get_state(), reward, True
 
         self.snake_pos.insert(0, head)
         
         if head == self.food_pos:
+            reward = 20  # 增加吃到食物的奖励
             if self.enable_effects:
                 # 创建食物消失效果
                 for _ in range(3):  # 创建多层效果
@@ -166,11 +182,17 @@ class SnakeGame:
                     self.SCORE_VALUE  # 使用统一的得分值
                 ))
             self.score += self.SCORE_VALUE  # 使用统一的得分值
-            reward = 10
             self.food_pos = self._generate_food()
         else:
             self.snake_pos.pop()
-            reward = -0.1
+            # 根据距离变化给予奖励或惩罚
+            if new_distance < prev_distance:
+                reward = 0.1  # 接近食物给予小奖励
+            else:
+                reward = -0.1  # 远离食物给予小惩罚
+            
+            # 额外的生存奖励
+            reward += 0.01
 
         return self._get_state(), reward, False
 

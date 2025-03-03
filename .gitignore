@@ -125,3 +125,5 @@ wandb/
 *.pth
 
 models/
+
+checkpoints/
