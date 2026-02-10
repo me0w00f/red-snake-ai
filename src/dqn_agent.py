@@ -24,11 +24,11 @@ class DQNAgent:
         self.state_size = state_size
         self.action_size = action_size
         self.hidden_size = hidden_size
-        self.memory = deque(maxlen=10000)
+        self.memory = deque(maxlen=50000)  # Larger replay buffer
         self.gamma = 0.95
         self.epsilon = 1.0
         self.epsilon_min = 0.01
-        self.epsilon_decay = 0.995
+        self.epsilon_decay = 0.999  # Slower decay for better exploration
         self.learning_rate = 0.001
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
