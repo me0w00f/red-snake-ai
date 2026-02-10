@@ -20,9 +20,10 @@ class DQN(nn.Module):
         return self.net(x)
 
 class DQNAgent:
-    def __init__(self, state_size, action_size):
+    def __init__(self, state_size, action_size, hidden_size=128):
         self.state_size = state_size
         self.action_size = action_size
+        self.hidden_size = hidden_size
         self.memory = deque(maxlen=10000)
         self.gamma = 0.95
         self.epsilon = 1.0
@@ -31,8 +32,8 @@ class DQNAgent:
         self.learning_rate = 0.001
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 
-        self.model = DQN(state_size, 64, action_size).to(self.device)
-        self.target_model = DQN(state_size, 64, action_size).to(self.device)
+        self.model = DQN(state_size, hidden_size, action_size).to(self.device)
+        self.target_model = DQN(state_size, hidden_size, action_size).to(self.device)
         self.optimizer = optim.Adam(self.model.parameters(), lr=self.learning_rate)
         self.criterion = nn.MSELoss()
 
@@ -79,8 +80,21 @@ class DQNAgent:
         self.target_model.load_state_dict(self.model.state_dict())
 
     def save(self, path):
-        torch.save(self.model.state_dict(), path)
+        torch.save({
+            'model_state_dict': self.model.state_dict(),
+            'state_size': self.state_size,
+            'action_size': self.action_size,
+            'hidden_size': self.hidden_size,
+            'epsilon': self.epsilon,
+        }, path)
 
     def load(self, path):
-        self.model.load_state_dict(torch.load(path))
+        checkpoint = torch.load(path, weights_only=False)
+        # Support both old format (raw state_dict) and new format (dict with metadata)
+        if isinstance(checkpoint, dict) and 'model_state_dict' in checkpoint:
+            self.model.load_state_dict(checkpoint['model_state_dict'])
+            if 'epsilon' in checkpoint:
+                self.epsilon = checkpoint['epsilon']
+        else:
+            self.model.load_state_dict(checkpoint)
         self.target_model.load_state_dict(self.model.state_dict())
