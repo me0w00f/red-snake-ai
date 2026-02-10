@@ -13,9 +13,10 @@ logging.basicConfig(
 
 def test(model_path, num_episodes=5, render=True, effects=True):  # 添加effects参数
     env = SnakeGame(width=1280, height=720, skin='gold', enable_effects=effects)  # 传递effects参数
-    state_size = 11
+    state_size = 14  # 14 features from game: 4 collision + 4 direction + 4 food direction + 2 food distance
     action_size = 4
-    agent = DQNAgent(state_size, action_size)
+    hidden_size = 128
+    agent = DQNAgent(state_size, action_size, hidden_size)
     
     logging.info(f"Loading model from {model_path}")
     agent.load(model_path)
