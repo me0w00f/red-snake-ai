@@ -57,6 +57,8 @@ class SnakeGame:
         self.max_animation_frames = 30  # 限制动画帧数
         self.enable_effects = enable_effects
         self.SCORE_VALUE = 1  # 定义基础得分值
+        self.max_steps_without_food = 200  # 防止无限转圈
+        self.steps_without_food = 0
         if enable_effects:
             self.trail = Trail()
             self.food_glow = FoodGlow()
@@ -71,6 +73,7 @@ class SnakeGame:
         self.score = 0
         self.game_over = False
         self.death_animation = False
+        self.steps_without_food = 0
         self.particle_system = ParticleSystem()
         return self._get_state()
 
@@ -137,7 +140,13 @@ class SnakeGame:
                                (head[1] - self.food_pos[1])**2)
         
         reward = 0
+        self.steps_without_food += 1
         self.game_over = self._is_collision(head)
+        
+        # 超过最大步数没吃到食物，判定超时
+        if not self.game_over and self.steps_without_food >= self.max_steps_without_food:
+            self.game_over = True
+            return self._get_state(), -5, True  # 超时惩罚
         
         if self.game_over:
             reward = -10
@@ -183,6 +192,7 @@ class SnakeGame:
                 ))
             self.score += self.SCORE_VALUE  # 使用统一的得分值
             self.food_pos = self._generate_food()
+            self.steps_without_food = 0  # 吃到食物重置计数器
         else:
             self.snake_pos.pop()
             # 根据距离变化给予奖励或惩罚

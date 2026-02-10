@@ -34,6 +34,12 @@ def test(model_path, num_episodes=5, render=True, effects=True):  # 添加effect
         
         episode_running = True
         while episode_running:
+            # 处理 pygame 事件，防止窗口未响应
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    env.close()
+                    return
+
             if render:
                 animation_complete = env.render()
             
